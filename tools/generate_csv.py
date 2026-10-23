@@ -61,6 +61,19 @@ def read_id(infonr: int) -> str:
     return hexs([weishaupt_check(d)] + d)
 
 
+def id_5000(paare: list[tuple[int, int, int]]) -> str:
+    """
+    ID für den Dienst 50 00 (Speicher des Feuerungsautomaten lesen, Slave 08).
+    Dasselbe Prüfbyte wie bei 50 22/50 23, gefolgt von Paaren (LP, Adresse):
+    L+1 = Anzahl Bytes (1…16), P = Seite. Antwort: ein Statusbyte, dann die Daten.
+    paare: [(Seite, Adresse, Anzahl Bytes), ...]
+    """
+    d = []
+    for seite, adr, n in paare:
+        d += [((n - 1) << 4) | seite, adr]
+    return hexs([weishaupt_check(d)] + d)
+
+
 WRITE_TAIL = [0x5D, 0x01, 0x00, 0x00]  # konstant bei allen Schreibtelegrammen des WCM-COM, Bedeutung unbekannt
 
 
@@ -76,6 +89,10 @@ assert read_id(5) == "700500"           # Normal-Raumtemperatur HK1
 assert write_id(8, 185) == "d80800b9005d010000"   # Absenk-Raumtemp. 18,5 °C
 assert write_id(8, 180) == "1c0800b4005d010000"   # Absenk-Raumtemp. 18,0 °C
 assert write_id(5, 210) == "600500d2005d010000"   # Normal-Raumtemp. 21,0 °C
+# 50 00: IDs aus J0EK3R/ebusd-configuration-weishaupt, mit demselben Prüfbyte nachgerechnet
+assert id_5000([(2, 0x3D, 7)]) == "c1623d"                     # Enduser
+assert id_5000([(2, 0xA3, 12)]) == "67b2a3"                    # Statistic1
+assert id_5000([(1, 0x62, 2), (1, 0x65, 1), (1, 0x70, 2), (1, 0x74, 1)]) == "bc1162016511700174"  # ProcessValues2
 
 
 # ---------------------------------------------------------------------------
@@ -129,8 +146,24 @@ HK1_NUR_LESEN = [
 ]
 
 
-# Nur bei Öl sinnvoll: in der Gas-Variante weggelassen.
-NUR_OEL = {"Magnetventil2", "OelzaehlerTausender", "OelzaehlerRest"}
+# Gas-Variante, Kessel über 50 00. Fachmann-Parameter auf Seite 2, ermittelt an einer WTC 45-A
+# durch Auslesen der Seite vor/nach Änderungen am Kessel (je eine Stufe, dann zurück):
+#   0x17 P31 max. Vorlauftemperatur (°C)      0x18 P32 Schaltdifferenz Vorlauf (K)
+#   0x19 P34 Brennertaktsperre (min) im unteren Halbbyte (oberes Halbbyte unbekannt)
+#   0x1a-0x1d unbekannt (0x1c/0x1d = 68 = 27 % von 255: vermutlich P36 minimale Leistung)
+#   0x1e P37 max. Leistung Heizbetrieb, Skala 0-255 (255 = 100 %)
+#   0x1f P41 Pumpennachlaufzeit (min)           0x20 P42 min. Leistung drehzahlgeregelte Pumpe (%)
+EINSTELLUNGEN_GAS = ("r,wtc,Einstellungen,Fachmann-Parameter Seite 2 0x17-0x20 (50 00),,08,5000,"
+                     + id_5000([(2, 0x17, 10)]) + ",Status,s,UCH,,,,P31MaxVorlauf,s,UCH,,°C,P31,"
+                     "P32Schaltdifferenz,s,UCH,,K,P32,P34Taktsperre,s,BI0:4,,min,P34,Byte19Oben,s,BI4:4,,,,"
+                     "Byte1a,s,UCH,,,,Byte1b,s,UCH,,,,Byte1c,s,UCH,,,,Byte1d,s,UCH,,,,"
+                     "P37MaxLeistung255,s,UCH,,,P37 Skala 0-255,P41Pumpennachlauf,s,UCH,,min,P41,"
+                     "P42PumpeMin,s,UCH,,%,P42\n")
+# Gebläsedrehzahl Soll/Ist (J0EK3R ProcessValues2), an der WTC 45-A: 3000/2940 1/min bei 26 % Last.
+LUEFTER_GAS = ("r,wtc,Geblaese,Gebläse Soll-/Istdrehzahl (50 00 nach J0EK3R ProcessValues2),,08,5000,"
+               + id_5000([(1, 0x62, 2), (1, 0x65, 1), (1, 0x70, 2), (1, 0x74, 1)])
+               + ",,s,IGN:1,,,,Byte1,s,UCH,,,,Byte2,s,UCH,,,,Byte3,s,UCH,,,,"
+               "SollDrehzahl,s,UCH,-60,1/min,,IstDrehzahl,s,UCH,-60,1/min,,Byte6,s,UCH,,,\n")
 
 # Status-Broadcast des Feuerungsautomaten (f1 fe 50 0a, ca. alle 30 s), Gas-Variante.
 # Belegung: J0EK3R/ebusd-configuration-weishaupt (weishaupt/f6..sc.csv), bestätigt an einer
@@ -155,13 +188,17 @@ def main(out=sys.stdout, variante="oel") -> None:
     w("# Voraussetzung fuer das Schreiben: ebusd laeuft mit --address=ff und das WCM-COM ist vom Bus getrennt.\n")
     w("# 32768 (0x8000) bedeutet 'Wert nicht verfuegbar'.\n")
     w("# type,circuit,name,comment,QQ,ZZ,PBSB,ID,field,part,datatype,divider/values,unit,comment\n")
-    w("#\n# --- Kessel / Feuerungsautomat (Slave 08), Lesen mit 50 22 ---\n")
-    for prio, name, nr, typ, div, unit, com in KESSEL:
-        if gas and name in NUR_OEL:
-            continue
-        if gas:
-            com += "; Gas: InfoNr noch zu bestätigen"
-        w(f"r{prio},wtc,{name},{com} (InfoNr {nr}),,08,5022,{read_id(nr)},,s,{typ},{div},{unit},\n")
+    if gas:
+        w("#\n# --- Kessel / Feuerungsautomat (Slave 08) ---\n")
+        w("# Die WTC 45-A beantwortet 50 22 NICHT (176 Abfragen ohne ACK, 07 04 wird beantwortet).\n")
+        w("# Gelesen wird mit 50 00 (Speicher), siehe docs/07-wtc-gas.md. Ohne Poll-Priorität:\n")
+        w("# nur auf Anfrage, z. B. einmal täglich: ebusctl read -f -c wtc Einstellungen\n")
+        w(EINSTELLUNGEN_GAS)
+        w(LUEFTER_GAS)
+    else:
+        w("#\n# --- Kessel / Feuerungsautomat (Slave 08), Lesen mit 50 22 ---\n")
+        for prio, name, nr, typ, div, unit, com in KESSEL:
+            w(f"r{prio},wtc,{name},{com} (InfoNr {nr}),,08,5022,{read_id(nr)},,s,{typ},{div},{unit},\n")
 
     w("#\n# --- Heizkreis 1 / WCM-FS (Slave 35), Lesen mit 50 22 ---\n")
     for name, nr, wcm, desc, lo, hi, step, unit in HK1_PARAMETER:

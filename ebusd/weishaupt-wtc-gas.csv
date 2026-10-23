@@ -5,30 +5,12 @@
 # 32768 (0x8000) bedeutet 'Wert nicht verfuegbar'.
 # type,circuit,name,comment,QQ,ZZ,PBSB,ID,field,part,datatype,divider/values,unit,comment
 #
-# --- Kessel / Feuerungsautomat (Slave 08), Lesen mit 50 22 ---
-r1,wtc,Flamme,Flammensignal 0/1; Gas: InfoNr noch zu bestätigen (InfoNr 81),,08,5022,945100,,s,UIN,,,
-r1,wtc,Magnetventil1,Brennerstufe 1 0/1; Gas: InfoNr noch zu bestätigen (InfoNr 1497),,08,5022,39d905,,s,UIN,,,
-r1,wtc,Pumpe,Kesselpumpe 0/1; Gas: InfoNr noch zu bestätigen (InfoNr 466),,08,5022,81d201,,s,UIN,,,
-r1,wtc,BetriebsartHeizung,Betriebsart Heizung 0/1; Gas: InfoNr noch zu bestätigen (InfoNr 82),,08,5022,705200,,s,UIN,,,
-r1,wtc,BetriebsartWarmwasser,Betriebsart Warmwasser 0/1; Gas: InfoNr noch zu bestätigen (InfoNr 83),,08,5022,2c5300,,s,UIN,,,
-r1,wtc,Betriebsphase,Betriebsphase i10 (0-9); Gas: InfoNr noch zu bestätigen (InfoNr 373),,08,5022,857501,,s,UIN,,,
-r1,wtc,Laststellung,Laststellung i11; Gas: InfoNr noch zu bestätigen (InfoNr 4176),,08,5022,d85010,,s,UIN,10,kW,
-r1,wtc,Vorlauftemp,Vorlauftemperatur i30 (eSTB); Gas: InfoNr noch zu bestätigen (InfoNr 3101),,08,5022,941d0c,,s,SIN,10,°C,
-r2,wtc,Waermeanforderung,Waermeanforderung / Kesselsollwert; Gas: InfoNr noch zu bestätigen (InfoNr 2),,08,5022,b80200,,s,SIN,10,°C,
-r2,wtc,Kesseltemp,Kesseltemperatur; Gas: InfoNr noch zu bestätigen (InfoNr 13),,08,5022,280d00,,s,SIN,10,°C,
-r2,wtc,Warmwassertemp,Warmwassertemperatur i34; Gas: InfoNr noch zu bestätigen (InfoNr 14),,08,5022,cc0e00,,s,SIN,10,°C,
-r2,wtc,Abgastemp,Abgastemperatur; Gas: InfoNr noch zu bestätigen (InfoNr 325),,08,5022,094501,,s,SIN,10,°C,
-r2,wtc,Stoerung,Fehlercode (0 = keine Stoerung); Gas: InfoNr noch zu bestätigen (InfoNr 1),,08,5022,5c0100,,s,UIN,,,
-r2,wtc,Betriebszustand,Betriebszustand (32768 = n/v); Gas: InfoNr noch zu bestätigen (InfoNr 374),,08,5022,617601,,s,UIN,,,
-r3,wtc,Aussentemp,Aussentemperatur i33; Gas: InfoNr noch zu bestätigen (InfoNr 12),,08,5022,740c00,,s,SIN,10,°C,
-r3,wtc,AussentempGedaempft,gedaempfte Aussentemperatur; Gas: InfoNr noch zu bestätigen (InfoNr 2572),,08,5022,7e0c0a,,s,SIN,10,°C,
-r5,wtc,Betriebsart,Betriebsart (Code); Gas: InfoNr noch zu bestätigen (InfoNr 103),,08,5022,8c6700,,s,UIN,,,
-r5,wtc,Ladezustand,Ladezustand (32768 = n/v); Gas: InfoNr noch zu bestätigen (InfoNr 138),,08,5022,108a00,,s,UIN,,,
-r5,wtc,ZeitSeitWartung,Zeit seit letzter Wartung; Gas: InfoNr noch zu bestätigen (InfoNr 700),,08,5022,0abc02,,s,UIN,,,
-r5,wtc,BrennerstartsRest,Brennerstarts Rest (< 1000); Gas: InfoNr noch zu bestätigen (InfoNr 3196),,08,5022,8c7c0c,,s,UIN,,,
-r5,wtc,BrennerstartsTausender,Brennerstarts Tausender; Gas: InfoNr noch zu bestätigen (InfoNr 3197),,08,5022,d07d0c,,s,UIN,,,
-r5,wtc,BetriebsstundenRest,Betriebsstunden Brenner Rest (< 1000); Gas: InfoNr noch zu bestätigen (InfoNr 3198),,08,5022,347e0c,,s,UIN,,,
-r5,wtc,BetriebsstundenTausender,Betriebsstunden Brenner Tausender; Gas: InfoNr noch zu bestätigen (InfoNr 3199),,08,5022,687f0c,,s,UIN,,,
+# --- Kessel / Feuerungsautomat (Slave 08) ---
+# Die WTC 45-A beantwortet 50 22 NICHT (176 Abfragen ohne ACK, 07 04 wird beantwortet).
+# Gelesen wird mit 50 00 (Speicher), siehe docs/07-wtc-gas.md. Ohne Poll-Priorität:
+# nur auf Anfrage, z. B. einmal täglich: ebusctl read -f -c wtc Einstellungen
+r,wtc,Einstellungen,Fachmann-Parameter Seite 2 0x17-0x20 (50 00),,08,5000,ef9217,Status,s,UCH,,,,P31MaxVorlauf,s,UCH,,°C,P31,P32Schaltdifferenz,s,UCH,,K,P32,P34Taktsperre,s,BI0:4,,min,P34,Byte19Oben,s,BI4:4,,,,Byte1a,s,UCH,,,,Byte1b,s,UCH,,,,Byte1c,s,UCH,,,,Byte1d,s,UCH,,,,P37MaxLeistung255,s,UCH,,,P37 Skala 0-255,P41Pumpennachlauf,s,UCH,,min,P41,P42PumpeMin,s,UCH,,%,P42
+r,wtc,Geblaese,Gebläse Soll-/Istdrehzahl (50 00 nach J0EK3R ProcessValues2),,08,5000,bc1162016511700174,,s,IGN:1,,,,Byte1,s,UCH,,,,Byte2,s,UCH,,,,Byte3,s,UCH,,,,SollDrehzahl,s,UCH,-60,1/min,,IstDrehzahl,s,UCH,-60,1/min,,Byte6,s,UCH,,,
 #
 # --- Heizkreis 1 / WCM-FS (Slave 35), Lesen mit 50 22 ---
 r5,hk1,Raumsoll,Normal-Raumtemperatur [112] (InfoNr 5),,35,5022,700500,,s,SIN,10,°C,

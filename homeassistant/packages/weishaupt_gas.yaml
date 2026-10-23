@@ -99,6 +99,54 @@ mqtt:
       state_class: measurement
       expire_after: 300
 
+    # Fachmann-Parameter des Kessels (50 00, Seite 2). Werden NICHT gepollt:
+    # einmal täglich lesen lassen, z. B. per cron/systemd-Timer auf dem
+    # ebusd-Host:  ebusctl read -f -c wtc Einstellungen  (siehe docs/07-wtc-gas.md).
+    # Ohne expire_after: der letzte Wert bleibt bis zur nächsten Lesung stehen.
+    - name: "Weishaupt P31 max. Vorlauftemperatur"
+      unique_id: weishaupt_einstellung_p31
+      default_entity_id: sensor.weishaupt_p31_max_vorlauf
+      state_topic: ebusd/wtc/Einstellungen
+      value_template: "{{ value_json.P31MaxVorlauf.value }}"
+      unit_of_measurement: "°C"
+      icon: mdi:thermometer-high
+    - name: "Weishaupt P32 Schaltdifferenz Vorlauf"
+      unique_id: weishaupt_einstellung_p32
+      default_entity_id: sensor.weishaupt_p32_schaltdifferenz
+      state_topic: ebusd/wtc/Einstellungen
+      value_template: "{{ value_json.P32Schaltdifferenz.value }}"
+      unit_of_measurement: "K"
+      icon: mdi:arrow-expand-vertical
+    - name: "Weishaupt P34 Brennertaktsperre"
+      unique_id: weishaupt_einstellung_p34
+      default_entity_id: sensor.weishaupt_p34_taktsperre
+      state_topic: ebusd/wtc/Einstellungen
+      value_template: "{{ value_json.P34Taktsperre.value }}"
+      unit_of_measurement: "min"
+      icon: mdi:timer-lock-outline
+    - name: "Weishaupt P37 max. Leistung Heizbetrieb"
+      unique_id: weishaupt_einstellung_p37
+      default_entity_id: sensor.weishaupt_p37_max_leistung
+      state_topic: ebusd/wtc/Einstellungen
+      # gespeichert auf der Skala 0-255
+      value_template: "{{ ((value_json.P37MaxLeistung255.value | int(0)) * 100 / 255) | round(0) }}"
+      unit_of_measurement: "%"
+      icon: mdi:gauge-full
+    - name: "Weishaupt P41 Pumpennachlaufzeit"
+      unique_id: weishaupt_einstellung_p41
+      default_entity_id: sensor.weishaupt_p41_pumpennachlauf
+      state_topic: ebusd/wtc/Einstellungen
+      value_template: "{{ value_json.P41Pumpennachlauf.value }}"
+      unit_of_measurement: "min"
+      icon: mdi:pump
+    - name: "Weishaupt P42 min. Pumpenleistung"
+      unique_id: weishaupt_einstellung_p42
+      default_entity_id: sensor.weishaupt_p42_pumpe_min
+      state_topic: ebusd/wtc/Einstellungen
+      value_template: "{{ value_json.P42PumpeMin.value }}"
+      unit_of_measurement: "%"
+      icon: mdi:pump
+
 template:
   - sensor:
       - name: "Weishaupt Status Betriebsphase Text"

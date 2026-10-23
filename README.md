@@ -32,14 +32,14 @@ Getestet mit: **Weishaupt WTC-OB 18-B**, Fernbedienung **WCM-FS** (Version FS 32
 
 ```
 ebusd/weishaupt-wtc.csv               ebusd-Definitionen (Lesen + 422 Schreibtelegramme), erzeugt
-ebusd/weishaupt-wtc-gas.csv           dieselben für WTC Gas, mit Status-Broadcast 50 0a, erzeugt
+ebusd/weishaupt-wtc-gas.csv           WTC Gas: Status-Broadcast 50 0a, Kessel über 50 00 (Fachmann-Parameter), erzeugt
 tools/generate_csv.py                 Generator für die CSV inkl. Prüfbyte-Berechnung
 homeassistant/packages/weishaupt.yaml           Sensoren, Zähler, Laufzeiten, Anzeigen
 homeassistant/packages/weishaupt_parameter.yaml Schieberegler + Automationen zum Schreiben
 homeassistant/packages/weishaupt_gas.yaml       WTC Gas: Sensoren aus dem Status-Broadcast, Starts/Laufzeiten
 tools/ebus_mitschnitt.py              passiver Mitschnitt (sendet nichts)
 tools/ebus_analyse.py                 Auswertung der Mitschnitte, 50 0a als CSV
-testdaten/                            drei Stunden Mitschnitt einer WTC 45-A
+testdaten/                            WTC 45-A: drei Stunden Mitschnitt, Auslesungen von Seite 2 (50 00)
 homeassistant/dashboard/ebus-view.yaml          Dashboard-Ansicht (WCM-COM-Ersatz)
 docs/01-hardware.md        Was du brauchst, Anschluss
 docs/02-installation.md    Schritt für Schritt
@@ -88,4 +88,4 @@ Key findings (details in [docs/03-protokoll.md](docs/03-protokoll.md), German):
 
 Tested with WTC-OB 18-B, WCM-FS 327.30, eBUS Adapter Shield C5, ebusd 26.1, Home Assistant 2026.10. Use at your own risk. License: MIT.
 
-**Gas variant (WTC 45-A)**: see [docs/07-wtc-gas.md](docs/07-wtc-gas.md). The burner's status broadcast `f1 fe 50 0a` (layout from J0EK3R/ebusd-configuration-weishaupt, confirmed on a WTC 45-A) gives operating phase, flame, gas valves, pump, fault, load, flow temperature and outdoor trend every 30 s without any polling. `generate_csv.py --variante gas` produces `ebusd/weishaupt-wtc-gas.csv`; `weishaupt_gas.yaml` adds the matching Home Assistant entities. Boiler InfoNr reads (`50 22`) are not yet confirmed on gas.
+**Gas variant (WTC 45-A)**: see [docs/07-wtc-gas.md](docs/07-wtc-gas.md). The burner's status broadcast `f1 fe 50 0a` (layout from J0EK3R/ebusd-configuration-weishaupt, confirmed on a WTC 45-A) gives operating phase, flame, gas valves, pump, fault, load, flow temperature and outdoor trend every 30 s without any polling. `generate_csv.py --variante gas` produces `ebusd/weishaupt-wtc-gas.csv`; `weishaupt_gas.yaml` adds the matching Home Assistant entities. On the WTC 45-A the boiler (`08`) does **not** answer `50 22`, but it answers `50 00` (memory read): its IDs use the same check byte, followed by (length-page, address) pairs. Installer parameters P31, P32, P34, P37, P41 and P42 were located on page 2 and are read by `Einstellungen`. Heating-circuit reads and writes (`50 22`/`50 23` to the WCM-FS) work unchanged.
