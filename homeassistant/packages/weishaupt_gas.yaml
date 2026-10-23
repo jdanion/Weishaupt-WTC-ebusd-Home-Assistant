@@ -1,0 +1,188 @@
+# Weishaupt WTC Gas über eBUS (ebusd) – Ergänzungs-Package für den Status-Broadcast
+# Projekt: https://github.com/B-o-r-i-s-M/Weishaupt-WTC-OB-ebusd-Home-Assistant (Gas-Variante: docs/07-wtc-gas.md)
+#
+# Ablage: <config>/packages/weishaupt_gas.yaml, zusätzlich zu weishaupt.yaml.
+# Voraussetzung: ebusd mit ebusd/weishaupt-wtc-gas.csv und --mqttjson.
+#
+# Der Feuerungsautomat einer WTC Gas sendet alle ~30 s von sich aus den
+# Broadcast f1 fe 50 0a: Betriebsphase, Flamme, Gasventile, Pumpe, Störung,
+# Laststellung, Vorlauf, Außentemperatur (Trend), Vorlauf-Soll. Dafür muss
+# ebusd nichts abfragen; es reicht sogar der reine Lesemodus (--readonly).
+# ebusd veröffentlicht das Telegramm unter ebusd/wtc/Status als JSON mit
+# einem Schlüssel je Feld: {"Flamme": {"value": 1}, "Pumpe": {"value": 1}, …}.
+# 0xff (Fühler nicht vorhanden, z. B. Abgas oder Warmwasser) kommt als null.
+#
+# Eigene IDs (weishaupt_status_*), damit nichts mit den abgefragten Werten
+# aus weishaupt.yaml kollidiert (z. B. binary_sensor.weishaupt_flamme aus
+# InfoNr 81). Bei einer WTC Gas genügt der Broadcast für Flamme und Pumpe.
+
+mqtt:
+  binary_sensor:
+    - name: "Weishaupt Status Flamme"
+      unique_id: weishaupt_status_flamme
+      default_entity_id: binary_sensor.weishaupt_status_flamme
+      state_topic: ebusd/wtc/Status
+      value_template: "{{ 'ON' if (value_json.Flamme.value | int(0)) == 1 else 'OFF' }}"
+      icon: mdi:fire
+      expire_after: 300
+    - name: "Weishaupt Status Pumpe"
+      unique_id: weishaupt_status_pumpe
+      default_entity_id: binary_sensor.weishaupt_status_pumpe
+      state_topic: ebusd/wtc/Status
+      value_template: "{{ 'ON' if (value_json.Pumpe.value | int(0)) == 1 else 'OFF' }}"
+      icon: mdi:pump
+      expire_after: 300
+    - name: "Weishaupt Status Gasventil 1"
+      unique_id: weishaupt_status_gasventil_1
+      default_entity_id: binary_sensor.weishaupt_status_gasventil_1
+      state_topic: ebusd/wtc/Status
+      value_template: "{{ 'ON' if (value_json.Gasventil1.value | int(0)) == 1 else 'OFF' }}"
+      icon: mdi:valve
+      expire_after: 300
+    - name: "Weishaupt Status Störung"
+      unique_id: weishaupt_status_stoerung
+      default_entity_id: binary_sensor.weishaupt_status_stoerung
+      state_topic: ebusd/wtc/Status
+      value_template: "{{ 'ON' if (value_json.Stoerung.value | int(0)) == 1 else 'OFF' }}"
+      device_class: problem
+      expire_after: 300
+    - name: "Weishaupt Status Winterbetrieb"
+      unique_id: weishaupt_status_winter
+      default_entity_id: binary_sensor.weishaupt_status_winter
+      state_topic: ebusd/wtc/Status
+      value_template: "{{ 'ON' if (value_json.Winter.value | int(0)) == 1 else 'OFF' }}"
+      icon: mdi:snowflake
+      expire_after: 300
+
+  sensor:
+    - name: "Weishaupt Status Betriebsphase"
+      unique_id: weishaupt_status_betriebsphase
+      default_entity_id: sensor.weishaupt_status_betriebsphase
+      state_topic: ebusd/wtc/Status
+      value_template: "{{ value_json.Betriebsphase.value }}"
+      icon: mdi:list-status
+      expire_after: 300
+    - name: "Weishaupt Status Laststellung"
+      unique_id: weishaupt_status_laststellung
+      default_entity_id: sensor.weishaupt_status_laststellung
+      state_topic: ebusd/wtc/Status
+      value_template: "{{ value_json.Laststellung.value }}"
+      unit_of_measurement: "%"
+      state_class: measurement
+      icon: mdi:gauge
+      expire_after: 300
+    - name: "Weishaupt Status Vorlauftemperatur"
+      unique_id: weishaupt_status_vorlauftemperatur
+      default_entity_id: sensor.weishaupt_status_vorlauftemperatur
+      state_topic: ebusd/wtc/Status
+      value_template: "{{ value_json.Vorlauftemp.value }}"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      state_class: measurement
+      expire_after: 300
+    - name: "Weishaupt Status Vorlauf-Soll"
+      unique_id: weishaupt_status_vorlauf_soll
+      default_entity_id: sensor.weishaupt_status_vorlauf_soll
+      state_topic: ebusd/wtc/Status
+      value_template: "{{ value_json.VorlaufSoll.value }}"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      state_class: measurement
+      expire_after: 300
+    - name: "Weishaupt Status Außentemperatur Trend"
+      unique_id: weishaupt_status_aussentemperatur_trend
+      default_entity_id: sensor.weishaupt_status_aussentemperatur_trend
+      state_topic: ebusd/wtc/Status
+      value_template: "{{ value_json.AussentempTrend.value }}"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      state_class: measurement
+      expire_after: 300
+
+    # Fachmann-Parameter des Kessels (50 00, Seite 2). Werden NICHT gepollt:
+    # einmal täglich lesen lassen, z. B. per cron/systemd-Timer auf dem
+    # ebusd-Host:  ebusctl read -f -c wtc Einstellungen  (siehe docs/07-wtc-gas.md).
+    # Ohne expire_after: der letzte Wert bleibt bis zur nächsten Lesung stehen.
+    - name: "Weishaupt P31 max. Vorlauftemperatur"
+      unique_id: weishaupt_einstellung_p31
+      default_entity_id: sensor.weishaupt_p31_max_vorlauf
+      state_topic: ebusd/wtc/Einstellungen
+      value_template: "{{ value_json.P31MaxVorlauf.value }}"
+      unit_of_measurement: "°C"
+      icon: mdi:thermometer-high
+    - name: "Weishaupt P32 Schaltdifferenz Vorlauf"
+      unique_id: weishaupt_einstellung_p32
+      default_entity_id: sensor.weishaupt_p32_schaltdifferenz
+      state_topic: ebusd/wtc/Einstellungen
+      value_template: "{{ value_json.P32Schaltdifferenz.value }}"
+      unit_of_measurement: "K"
+      icon: mdi:arrow-expand-vertical
+    - name: "Weishaupt P34 Brennertaktsperre"
+      unique_id: weishaupt_einstellung_p34
+      default_entity_id: sensor.weishaupt_p34_taktsperre
+      state_topic: ebusd/wtc/Einstellungen
+      value_template: "{{ value_json.P34Taktsperre.value }}"
+      unit_of_measurement: "min"
+      icon: mdi:timer-lock-outline
+    - name: "Weishaupt P37 max. Leistung Heizbetrieb"
+      unique_id: weishaupt_einstellung_p37
+      default_entity_id: sensor.weishaupt_p37_max_leistung
+      state_topic: ebusd/wtc/Einstellungen
+      # gespeichert auf der Skala 0-255
+      value_template: "{{ ((value_json.P37MaxLeistung255.value | int(0)) * 100 / 255) | round(0) }}"
+      unit_of_measurement: "%"
+      icon: mdi:gauge-full
+    - name: "Weishaupt P41 Pumpennachlaufzeit"
+      unique_id: weishaupt_einstellung_p41
+      default_entity_id: sensor.weishaupt_p41_pumpennachlauf
+      state_topic: ebusd/wtc/Einstellungen
+      value_template: "{{ value_json.P41Pumpennachlauf.value }}"
+      unit_of_measurement: "min"
+      icon: mdi:pump
+    - name: "Weishaupt P42 min. Pumpenleistung"
+      unique_id: weishaupt_einstellung_p42
+      default_entity_id: sensor.weishaupt_p42_pumpe_min
+      state_topic: ebusd/wtc/Einstellungen
+      value_template: "{{ value_json.P42PumpeMin.value }}"
+      unit_of_measurement: "%"
+      icon: mdi:pump
+
+template:
+  - sensor:
+      - name: "Weishaupt Status Betriebsphase Text"
+        unique_id: weishaupt_status_betriebsphase_text
+        default_entity_id: sensor.weishaupt_status_betriebsphase_text
+        icon: mdi:list-status
+        # 0–9 nach J0EK3R; 12–14 an der WTC 45-A beim Start gesehen, Bedeutung offen.
+        state: >
+          {% set p = states('sensor.weishaupt_status_betriebsphase') | int(-1) %}
+          {{ {0: 'Brenner aus', 1: 'Ruhestandskontrolle Gebläse', 2: 'Vorspüldrehzahl',
+              3: 'Vorspülzeit', 4: 'Zünddrehzahl', 5: 'Flammenbildung', 6: 'Brenner in Betrieb',
+              7: 'Gasventilkontrolle V1', 8: 'Gasventilkontrolle V2', 9: 'Nachspülen'}.get(p,
+              'Phase ' ~ p if p >= 0 else 'unbekannt') }}
+
+sensor:
+  - platform: history_stats
+    name: "Weishaupt Brennerstarts heute"
+    unique_id: weishaupt_status_brennerstarts_heute
+    entity_id: binary_sensor.weishaupt_status_flamme
+    state: "on"
+    type: count
+    start: "{{ today_at() }}"
+    end: "{{ now() }}"
+  - platform: history_stats
+    name: "Weishaupt Brennerlaufzeit heute"
+    unique_id: weishaupt_status_brennerlaufzeit_heute
+    entity_id: binary_sensor.weishaupt_status_flamme
+    state: "on"
+    type: time
+    start: "{{ today_at() }}"
+    end: "{{ now() }}"
+  - platform: history_stats
+    name: "Weishaupt Pumpenlaufzeit heute"
+    unique_id: weishaupt_status_pumpenlaufzeit_heute
+    entity_id: binary_sensor.weishaupt_status_pumpe
+    state: "on"
+    type: time
+    start: "{{ today_at() }}"
+    end: "{{ now() }}"
