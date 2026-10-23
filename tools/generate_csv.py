@@ -11,11 +11,17 @@ Hintergrund (Details in docs/03-protokoll.md):
   fuer jede Abfrage und fuer jeden einstellbaren Wert ein fertiges Telegramm.
 
 Aufruf:
-  python3 tools/generate_csv.py > ebusd/weishaupt-wtc.csv
+  python3 tools/generate_csv.py > ebusd/weishaupt-wtc.csv                    # WTC-OB (Öl)
+  python3 tools/generate_csv.py --variante gas > ebusd/weishaupt-wtc-gas.csv  # WTC Gas (z. B. WTC 45-A)
+
+Gas-Variante (docs/07-wtc-gas.md): ohne Ölzähler und Brennerstufe 2, dafür der
+Status-Broadcast f1 fe 50 0a des Feuerungsautomaten (Belegung nach
+J0EK3R/ebusd-configuration-weishaupt, an einer WTC 45-A bestätigt).
 
 Bereiche, Schritte und Abfrage-Prioritaeten lassen sich unten anpassen.
 """
 
+import argparse
 import sys
 
 
@@ -123,9 +129,27 @@ HK1_NUR_LESEN = [
 ]
 
 
-def main(out=sys.stdout) -> None:
+# Nur bei Öl sinnvoll: in der Gas-Variante weggelassen.
+NUR_OEL = {"Magnetventil2", "OelzaehlerTausender", "OelzaehlerRest"}
+
+# Status-Broadcast des Feuerungsautomaten (f1 fe 50 0a, ca. alle 30 s), Gas-Variante.
+# Belegung: J0EK3R/ebusd-configuration-weishaupt (weishaupt/f6..sc.csv), bestätigt an einer
+# WTC 45-A über 4 Tage Mitschnitt (8 363 Telegramme) gegen Vorlauf/Rücklauf-Fühler (r = 0,97).
+# Byte 2: Bit 3 Flamme, 4/5 Gasventil 1/2, 6 Pumpe, 7 Störung. Byte 3: Bit 1 Winter, Bit 6
+# Wärmeanforderung (beobachtet), Bit 7 Umschaltventil Warmwasser. 0xff = Fühler nicht vorhanden.
+STATUS_GAS = ("u,wtc,Status,Status-Broadcast Feuerungsautomat (50 0a),f1,fe,500a,,"
+              "Status1,,UCH,,,,Betriebsphase,,UCH,,,,B2Bit0,,BI0,,,,B2Bit1,,BI1,,,,B2Bit2,,BI2,,,,"
+              "Flamme,,BI3,,,,Gasventil1,,BI4,,,,Gasventil2,,BI5,,,,Pumpe,,BI6,,,,Stoerung,,BI7,,,,"
+              "B3Bit0,,BI0,,,,Winter,,BI1,,,,B3Bit2,,BI2,,,,B3Bit3,,BI3,,,,B3Bit4,,BI4,,,,B3Bit5,,BI5,,,,"
+              "Anforderung,,BI6,,,,UmschaltventilWW,,BI7,,,,Laststellung,,UCH,,%,,Vorlauftemp,,D1C,,°C,,"
+              "Abgastemp,,D1C,,°C,,Warmwassertemp,,D1C,,°C,,Byte8,,UCH,,,,Aussentemp,,D1B,,°C,,"
+              "AussentempTrend,,D2B,,°C,,VorlaufSoll,,UCH,,°C,\n")
+
+
+def main(out=sys.stdout, variante="oel") -> None:
     w = out.write
-    w("# ebusd-Definitionen Weishaupt WTC-OB mit WCM-FS (Heizkreis 1)\n")
+    gas = variante == "gas"
+    w("# ebusd-Definitionen Weishaupt %s mit WCM-FS (Heizkreis 1)\n" % ("WTC Gas (getestet: WTC 45-A)" if gas else "WTC-OB"))
     w("# Erzeugt mit tools/generate_csv.py - Aenderungen bitte dort vornehmen.\n")
     w("# Projekt: https://github.com/B-o-r-i-s-M/Weishaupt-WTC-OB-ebusd-Home-Assistant\n")
     w("# Voraussetzung fuer das Schreiben: ebusd laeuft mit --address=ff und das WCM-COM ist vom Bus getrennt.\n")
@@ -133,6 +157,10 @@ def main(out=sys.stdout) -> None:
     w("# type,circuit,name,comment,QQ,ZZ,PBSB,ID,field,part,datatype,divider/values,unit,comment\n")
     w("#\n# --- Kessel / Feuerungsautomat (Slave 08), Lesen mit 50 22 ---\n")
     for prio, name, nr, typ, div, unit, com in KESSEL:
+        if gas and name in NUR_OEL:
+            continue
+        if gas:
+            com += "; Gas: InfoNr noch zu bestätigen"
         w(f"r{prio},wtc,{name},{com} (InfoNr {nr}),,08,5022,{read_id(nr)},,s,{typ},{div},{unit},\n")
 
     w("#\n# --- Heizkreis 1 / WCM-FS (Slave 35), Lesen mit 50 22 ---\n")
@@ -141,6 +169,9 @@ def main(out=sys.stdout) -> None:
     for name, nr, typ, div, unit, com in HK1_NUR_LESEN:
         w(f"r5,hk1,{name},{com} (InfoNr {nr}),,35,5022,{read_id(nr)},,s,{typ},{div},{unit},\n")
 
+    if gas:
+        w("#\n# --- Broadcast Feuerungsautomat (f1): Status 50 0a ---\n")
+        w(STATUS_GAS)
     w("#\n# --- Broadcast WCM-FS (30) an Feuerungsautomat (f1): genormter Dienst 05 07 ---\n")
     w("u,regler,Betriebsdaten,Regler an Feuerungsautomat (05 07),30,f1,0507,,"
       "Zustand,,UCH,,,,Aktion,,UCH,,,,Kesselsollwert,,D2C,,°C,,Kesseldruck,,D2C,,bar,,"
@@ -158,4 +189,6 @@ def main(out=sys.stdout) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    p = argparse.ArgumentParser(description=__doc__.split("\n")[1])
+    p.add_argument("--variante", choices=["oel", "gas"], default="oel")
+    main(variante=p.parse_args().variante)
